@@ -1,159 +1,288 @@
-# Uber Website Backend
+# Uber Website — Backend
 
-This is the backend service for the Uber Website project, built with Node.js, Express, and MongoDB.
+This repository contains the backend API for the "Uber Website" project. It's a small Node.js + Express application using MongoDB (Mongoose) for persistence. The backend provides user authentication (register, login, profile, logout) with JWT-based tokens and token blacklisting for logout.
 
-## Project Structure
+## Table of contents
+- Project structure
+- Prerequisites
+- Environment variables
+- Install & run
+- API reference (endpoints, payloads, responses)
+- Data model
+- Request / response & data flow
+- Security & notes
+- Troubleshooting
+
+## Project structure
 
 ```
 Backend/
-├── app.js          # Express app configuration
-├── server.js       # Server initialization
+├── app.js                # Express app configuration
+├── server.js             # Server initialization
 ├── config/
-│   └── db.js       # Database configuration
+│   └── db.js             # Database connection
 ├── controller/
-│   └── user_controller.js    # User route handlers
+│   └── user_controller.js# Route handlers for user actions
+├── middleware/
+│   └── auth.middleware.js# JWT auth + token blacklist check
 ├── model/
-│   └── user_model.js        # User mongoose schema
+│   ├── user_model.js     # Mongoose user schema + helper methods
+│   └── blacklistToken.js # Token blacklist schema
 ├── routes/
-│   └── user_routes.js       # User route definitions
+│   └── user_routes.js    # Route definitions + validation rules
 └── services/
-    └── user_services.js     # User business logic
+    └── user_services.js  # Business logic (createUser, etc.)
 ```
 
-## Setup
+## Prerequisites
 
-1. Install dependencies:
-```bash
+- Node.js (v14+ recommended)
+- npm
+- MongoDB URI (local or cloud)
+
+## Environment variables
+
+Create a `.env` file at the project root (Backend/). Required variables:
+
+```
+PORT=4000
+MONGODB_URI=mongodb://localhost:27017/uber-website
+JWT_SECRET=your_jwt_secret_here
+```
+
+## Install & run
+
+Install dependencies and start the server (PowerShell / cmd compatible):
+
+```powershell
 npm install
-```
-
-2. Create a `.env` file in the root directory with the following variables:
-```
-PORT=3000
-MONGODB_URI=<your_mongodb_uri>
-JWT_SECRET=<your_jwt_secret>
-```
-
-3. Start the server:
-```bash
 npm start
 ```
 
-The server will start running at `http://localhost:3000`.
+By default the app listens on `http://localhost:4000`. The API base path is `/api/v1`.
 
-## API Endpoints
+Base URL: http://localhost:4000/api/v1
 
-### Base URL
-```
-http://localhost:3000/api/v1
-```
+## API Reference
 
-### Authentication Endpoints
+All endpoints are under `/api/v1`.
 
-#### 1. Register User
-- **Endpoint**: `POST /register/user`
-- **Description**: Register a new user
-- **Request Body**:
+### 1) Register — Create a new user
+- Endpoint: POST /register/user
+- Description: Register a new user. Validates input, hashes password, creates user, returns JWT and created user (without password).
+
+Request headers:
+- Content-Type: application/json
+
+Request body example:
+
 ```json
 {
-    "fullname": {
-        "firstname": "John",
-        "lastname": "Doe"
-    },
-    "email": "john@example.com",
-    "password": "password123"
+  "fullname": { "firstname": "John", "lastname": "Doe" },
+  "email": "john@example.com",
+  "password": "password123"
 }
 ```
-- **Validation**:
-  - Email must be valid
-  - First name must be at least 3 characters
-  - Password must be at least 6 characters
 
-#### 2. Login User
-- **Endpoint**: `POST /login/user`
-- **Description**: Authenticate existing user
-- **Request Body**:
+Validation rules (from `routes/user_routes.js`):
+- `email` must be a valid email
+- `fullname.firstname` min length 3
+- `password` min length 6
+
+Successful response (201):
+
 ```json
 {
-    "email": "john@example.com",
-    "password": "password123"
+  "message": "user Sucessfully created",
+  "info": {
+    "token": "<jwt-token>",
+    "user": { "_id": "...", "fullname": { "firstname": "John", "lastname": "Doe" }, "email": "john@example.com", "socketId": null }
+  }
 }
 ```
-- **Validation**:
-  - Email must be valid
-  - Password must be at least 6 characters
 
-## Data Flow
+Errors:
+- 400: Validation errors
+- 500: Server / DB errors (unique email violation, etc.)
 
-1. **Request Flow**:
-   - Client makes HTTP request → Express Router → Controller → Service → Model → Database
-   - Database → Model → Service → Controller → Client Response
+Implementation notes:
+- `user_controller.register` uses `express-validator` to check inputs, `userModel.hashPassword()` (bcrypt) to hash the password, `userService.createUser()` to create the DB record, and `user.generateAuthToken()` to sign a JWT.
 
-2. **Authentication Flow**:
-   - User registration:
-     1. Request validated using express-validator
-     2. Password hashed using bcrypt
-     3. User created in database
-     4. JWT token generated and returned
+### 2) Login — Authenticate user
+- Endpoint: POST /login/user
+- Description: Authenticate a user by email and password. Returns JWT and user data. Also sets a cookie named `token`.
 
-   - User login:
-     1. Request validated
-     2. User credentials verified
-     3. JWT token generated and returned
+Request headers:
+- Content-Type: application/json
 
-## Security Features
+Request body example:
 
-1. Password Hashing:
-   - Passwords are hashed using bcrypt before storage
-   - Passwords are never stored in plain text
-
-2. JWT Authentication:
-   - Secure token generation using JWT
-   - Tokens signed with secret key
-
-3. Input Validation:
-   - Request validation using express-validator
-   - Data sanitization and validation before processing
-
-## Models
-
-### User Model
-
-```javascript
+```json
 {
-    fullname: {
-        firstname: String,  // required, min 3 chars
-        lastname: String    // min 3 chars
-    },
-    email: String,         // required, unique, min 5 chars
-    password: String,      // required, not returned in queries
-    socketId: String       // optional
+  "email": "john@example.com",
+  "password": "password123"
 }
 ```
 
-## Error Handling
+Successful response (200):
 
-The API implements proper error handling for:
-- Invalid input data
-- Authentication failures
-- Database errors
-- Server errors
+```json
+{
+  "message": "user Sucessfully logged in",
+  "info": {
+    "token": "<jwt-token>",
+    "user": { "_id": "...", "fullname": { "firstname": "John", "lastname": "Doe" }, "email": "john@example.com", "socketId": null }
+  }
+}
+```
 
-## Technologies Used
+Notes:
+- The server sets an HTTP cookie `token` containing the JWT: `res.cookie('token', token);`
+- The user password is selected (`.select('+password')`) for comparison but is not returned in the response.
 
-- Node.js
-- Express.js
-- MongoDB with Mongoose
-- JSON Web Tokens (JWT)
-- bcrypt
-- express-validator
-- cors
-- dotenv
+Errors:
+- 400: Invalid credentials or user not found
+- 400: Validation errors
 
-## Contributing
+### 3) Get Profile — Protected route
+- Endpoint: GET /user/profile
+- Description: Returns the authenticated user's profile.
 
-1. Fork the repository
-2. Create your feature branch
-3. Commit your changes
-4. Push to the branch
-5. Create a new Pull Request
+Authentication:
+- Requires valid JWT token, either in cookie `token` or in `Authorization` header as `Bearer <token>`.
+
+Successful response (200):
+
+```json
+{
+  "user": { "_id": "...", "fullname": { "firstname": "John", "lastname": "Doe" }, "email": "john@example.com", "socketId": null }
+}
+```
+
+Errors:
+- 401: No token or invalid token
+
+Middleware behavior (`middleware/auth.middleware.js`):
+- Reads token from `req.cookies.token` or `Authorization` header
+- Checks `BlacklistToken` collection — if found, rejects
+- Verifies JWT (`jwt.verify(..., JWT_SECRET)`)
+- Loads user from DB and attaches to `req.user`
+
+### 4) Logout — Blacklist token and clear cookie
+- Endpoint: GET /logout/user
+- Description: Clears the cookie and stores the current token in `blacklistToken` collection so it cannot be reused.
+
+Behavior:
+- `res.clearCookie('token')` clears cookie
+- The token (from cookie or Authorization header) is saved into `BlacklistToken` model so subsequent requests using that token fail auth (token schema has an expiry TTL of 24 hours)
+
+Successful response (200):
+
+```json
+{ "message": "User logged out successfully" }
+```
+
+Errors:
+- 500: If blacklist write fails
+
+## Data model
+
+User model (`model/user_model.js`) — fields and helpers:
+
+Schema shape:
+
+```js
+{
+  fullname: {
+    firstname: { type: String, required: true, minlength: 3 },
+    lastname: { type: String, minlength: 3 }
+  },
+  email: { type: String, required: true, unique: true, minlength: 5 },
+  password: { type: String, required: true, select: false },
+  socketId: { type: String }
+}
+```
+
+Helpers / methods:
+- `userModel.hashPassword(password)` — static, uses bcrypt.hash(password, 10)
+- `user.comparePassword(password)` — instance method, compares via bcrypt.compare
+- `user.generateAuthToken()` — instance method, signs JWT with `JWT_SECRET` and 24h expiry
+
+BlacklistToken model (`model/blacklistToken.js`):
+- `token` string, unique
+- `createdAt` with TTL index set to expire after 86400 seconds (24h) — tokens will be removed automatically
+
+## Request / response & data flow
+
+High-level flow for register/login/profile requests:
+
+1. Client sends HTTP request to Express route (e.g., POST /api/v1/register/user)
+2. Route-level validators (express-validator) validate request body
+3. Controller receives validated input and uses service/model functions
+   - For register: controller hashes password, calls service to create user
+   - For login: controller finds user, compares password
+4. Controller generates JWT using `user.generateAuthToken()` and returns it in the response body and (for login) as a cookie
+5. For protected routes, `auth.middleware` extracts token (cookie or Authorization header), checks blacklist collection, verifies JWT, fetches user from DB, and sets `req.user` for controllers to use
+
+Sequence diagram (text):
+
+Client -> Router -> Controller -> Service -> Model -> MongoDB
+MongoDB -> Model -> Service -> Controller -> Router -> Client
+
+Auth sequence for protected route:
+
+Client (sends cookie or Authorization header) -> auth.middleware
+auth.middleware -> BlacklistToken.findOne(token)
+if blacklisted -> 401
+else jwt.verify -> userModel.findById(decoded.id) -> attach user to req
+
+## Security & notes
+
+- Passwords are hashed with bcrypt; never stored in plain text.
+- JWTs are signed with `JWT_SECRET`. Keep the secret safe and rotate as necessary.
+- Logout is implemented using token blacklisting (temporary blacklist stored for 24h). This prevents reuse of tokens after logout.
+- The server sets an authentication cookie on login. For API clients, you can instead send the token in the `Authorization: Bearer <token>` header.
+
+Potential improvements:
+- Set `httpOnly`, `secure`, `sameSite` flags on cookies for better security.
+- Add refresh tokens if longer sessions are needed.
+- Add rate limiting to login/register endpoints.
+
+## Troubleshooting
+
+- 401 on protected route: Ensure the `token` cookie is present or send `Authorization: Bearer <token>` header. Also check blacklist collection.
+- 500 or duplicate key error on register: The email is already registered.
+- DB connection errors: Ensure `MONGODB_URI` is correct and MongoDB is running.
+
+## Example requests (curl / PowerShell)
+
+Register:
+
+```powershell
+curl -X POST http://localhost:4000/api/v1/register/user -H "Content-Type: application/json" -d '{"fullname": {"firstname":"John","lastname":"Doe"},"email":"john@example.com","password":"password123"}'
+```
+
+Login:
+
+```powershell
+curl -X POST http://localhost:4000/api/v1/login/user -H "Content-Type: application/json" -d '{"email":"john@example.com","password":"password123"}' -c cookie.txt
+```
+
+Get profile (using saved cookie):
+
+```powershell
+curl http://localhost:4000/api/v1/user/profile -b cookie.txt
+```
+
+Logout:
+
+```powershell
+curl http://localhost:4000/api/v1/logout/user -b cookie.txt
+```
+
+## Final notes
+
+This README documents the current implementation of user auth in this backend. If you update controllers, routes, or auth behavior, please keep this README in sync.
+
+---
+
