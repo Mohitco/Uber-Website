@@ -1,6 +1,7 @@
 const express = require('express');
 const { body } = require('express-validator');
-const { registerCaptain } = require('../controller/captain_controller');
+const { registerCaptain,loginCaptain,getCaptainProfile, logoutCaptain } = require('../controller/captain_controller');
+const { authCaptain } = require('../middleware/auth.middleware');
 
 const router = express.Router();
 
@@ -15,5 +16,12 @@ router.post('/register/captain',[
 ],registerCaptain
 );
 
+router.post('/login/captain',[
+    body('email').isEmail().withMessage('Valid email is required'),
+    body('password').not().isEmpty().withMessage('Password is required'),
+],loginCaptain);
+
+router.get('/captain/profile',authCaptain,getCaptainProfile);
+router.get('/logout/captain',authCaptain,logoutCaptain);
 
 module.exports = router;

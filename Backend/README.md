@@ -195,59 +195,168 @@ Base URL: `http://localhost:4000/api/v1`
 
 ### Captain Endpoints
 
+Below are the captain-related endpoints. Each example shows the request body and possible responses in JSON. Inline comments (//) indicate constraints or notes about fields.
+
 #### 1. Register Captain
 - **URL**: POST `/register/captain`
-- **Description**: Register new captain with vehicle
+- **Description**: Create a new captain account with vehicle details
 - **Auth**: Not required
-- **Body**:
-  ```json
-  {
-    "fullname": {
-      "firstname": "Mike",
-      "lastname": "Johnson"
-    },
-    "email": "mike@example.com",
-    "password": "password123",
-    "vehicle": {
-      "color": "Silver",
-      "plateNumber": "KA01AB1234",
-      "capacity": 4,
-      "vehicleType": "car"
-    }
-  }
-  ```
-- **Validation Rules**:
-  - firstname: required, min 3 chars
-  - email: valid email format
-  - password: min 6 chars
-  - vehicle.color: required
-  - vehicle.plateNumber: required, unique
-  - vehicle.capacity: 1-5
-  - vehicle.vehicleType: ["car", "motorbike", "auto"]
 
-- **Success Response** (201):
-  ```json
-  {
-    "message": "Captain registered successfully",
-    "info": {
-      "token": "<jwt-token>",
-      "captain": {
-        "fullname": {
-          "firstname": "Mike",
-          "lastname": "Johnson"
-        },
-        "email": "mike@example.com",
-        "status": "inactive",
-        "vehicle": {
-          "color": "Silver",
-          "plateNumber": "KA01AB1234",
-          "capacity": 4,
-          "vehicleType": "car"
-        }
-      }
+Request body (JSON shown with comment-style annotations):
+
+```json
+{
+  "fullname": {
+    "firstname": "Mike", // required, min length: 3
+    "lastname": "Johnson" // optional, min length: 3
+  },
+  "email": "mike@example.com", // required, must be valid email
+  "password": "password123", // required, min length: 6
+  "vehicle": {
+    "color": "Silver", // required
+    "plateNumber": "KA01AB1234", // required, unique
+    "capacity": 4, // required, integer, 1-5
+    "vehicleType": "car" // required, one of: "car","motorbike","auto"
+  }
+}
+```
+
+Success response (201):
+
+```json
+{
+  "message": "Captain registered successfully",
+  "info": {
+    "token": "<jwt-token>",
+    "captain": {
+      "_id": "<captain-id>",
+      "fullname": { "firstname": "Mike", "lastname": "Johnson" },
+      "email": "mike@example.com",
+      "status": "inactive", // default value
+      "vehicle": {
+        "color": "Silver",
+        "plateNumber": "KA01AB1234",
+        "capacity": 4,
+        "vehicleType": "car"
+      },
+      "location": { "lat": null, "lng": null }
     }
   }
-  ```
+}
+```
+
+Validation error example (400):
+
+```json
+{
+  "errors": [
+    { "msg": "Name is required", "param": "fullname.firstname", "location": "body" }
+  ]
+}
+```
+
+Duplicate email / plate example (400):
+
+```json
+{
+  "error": "Captain with this email already exists"
+}
+```
+
+---
+
+#### 2. Login Captain
+- **URL**: POST `/login/captain`
+- **Description**: Authenticate captain and receive a JWT (also set as cookie)
+- **Auth**: Not required
+
+Request body:
+
+```json
+{
+  "email": "mike@example.com", // required, must be registered
+  "password": "password123" // required
+}
+```
+
+Success response (200):
+
+```json
+{
+  "message": "Captain logged in successfully",
+  "info": {
+    "token": "<jwt-token>",
+    "captain": {
+      "_id": "<captain-id>",
+      "fullname": { "firstname": "Mike", "lastname": "Johnson" },
+      "email": "mike@example.com",
+      "status": "inactive",
+      "vehicle": { "color": "Silver", "plateNumber": "KA01AB1234", "capacity": 4, "vehicleType": "car" }
+    }
+  }
+}
+```
+
+Invalid credentials example (400):
+
+```json
+{
+  "error": "Invalid email or password"
+}
+```
+
+---
+
+#### 3. Get Captain Profile
+- **URL**: GET `/captain/profile`
+- **Description**: Returns the authenticated captain profile
+- **Auth**: Required (send token in cookie `token` or header `Authorization: Bearer <token>`)
+
+Success response (200):
+
+```json
+{
+  "captain": {
+    "_id": "<captain-id>",
+    "fullname": { "firstname": "Mike", "lastname": "Johnson" },
+    "email": "mike@example.com",
+    "status": "inactive",
+    "vehicle": { "color": "Silver", "plateNumber": "KA01AB1234", "capacity": 4, "vehicleType": "car" },
+    "location": { "lat": null, "lng": null }
+  }
+}
+```
+
+Unauthorized example (401):
+
+```json
+{
+  "error": "No token, authorization denied"
+}
+```
+
+---
+
+#### 4. Logout Captain
+- **URL**: GET `/logout/captain`
+- **Description**: Blacklists the current token and clears cookie
+- **Auth**: Required
+
+Success response (200):
+
+```json
+{
+  "message": "Captain logged out successfully"
+}
+```
+
+Error while blacklisting (500):
+
+```json
+{
+  "error": "Internal server error"
+}
+```
 
 ## 🔄 Data Flow
 
