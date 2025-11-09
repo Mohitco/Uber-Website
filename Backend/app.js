@@ -3,7 +3,8 @@ require('dotenv').config();
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
 const connectDb = require('./config/db');
-const userRoutes = require('./routes/user_routes')
+const userRoutes = require('./routes/user_routes');
+const captainRoutes = require('./routes/captain_router');
 const app = express();
 
 connectDb();
@@ -17,5 +18,6 @@ app.get('/',(req,res) => {
 })
 
 app.use('/api/v1',userRoutes);
+app.use('/api/v1',captainRoutes);
 
 module.exports = app;

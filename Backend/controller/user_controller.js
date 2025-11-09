@@ -11,6 +11,10 @@ const register = async (req,res,next) => {
     //Get data from user after validation
     const {fullname, email, password} = req.body;
 
+    //Check if user with same email exists
+    const userExists = await userModel.findOne({ email });
+    if(userExists) return res.status(400).json({error : "User with this email already exists"});
+
     // Encrypt the password
     const hashpass = await userModel.hashPassword(password);
 
